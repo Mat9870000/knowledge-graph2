@@ -212,7 +212,7 @@ let rawData = [];
 let cy = null;
 
 // ===== LOAD JSON =====
-fetch('data.json')
+fetch('data.json?cache=' + new Date().getTime())
   .then(res => res.json())
   .then(data => {
     rawData = data;
