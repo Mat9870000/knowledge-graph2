@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Knowledge Graph</title>
+  <script src="https://unpkg.com/cytoscape/dist/cytoscape.min.js"></script>
+
+  <style>
+    :root{
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --border: #d9d9d9;
+      --text: #1f1f1f;
+      --muted: #6f6f6f;
+      --initiative: #0078d4;
+      --technology: #00b894;
+      --role: #f4b04f;
+      --edge: #c7c7c7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #sidebar {
+      width: 320px;
+      min-width: 320px;
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    #sidebar h2 {
+      margin: 0 0 6px 0;
+      font-size: 20px;
+    }
+
+    #sidebar p.small {
+      margin: 0 0 16px 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    .section {
+      margin-bottom: 18px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid #efefef;
+    }
+
+    .section:last-child { border-bottom: none; }
+
+    .section h3 {
+      margin: 0 0 10px 0;
+      font-size: 15px;
+    }
+
+    .filter-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .legend {
+      display: grid;
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      flex: 0 0 12px;
+    }
+
+    .btn {
+      display: inline-block;
+      border: 1px solid var(--border);
+      background: #fff;
+      color: var(--text);
+      padding: 8px 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    .btn:hover {
+      background: #f1f1f1;
+    }
+
+    #details {
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--text);
+      white-space: normal;
+      word-break: break-word;
+    }
+
+    #details .placeholder {
+      color: var(--muted);
+    }
+
+    #graphWrap {
+      flex: 1;
+      min-width: 0;
+      position: relative;
+    }
+
+    #cy {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #toolbar {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 10;
+      display: flex;
+      gap: 8px;
+    }
+
+    .chip {
+      background: rgba(255,255,255,.92);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+      font-size: 12px;
+      color: var(--muted);
+      backdrop-filter: blur(2px);
+    }
+  </style>
+</head>
+<body>
+
+  <aside id="sidebar">
+    <h2>Knowledge Graph</h2>
+    <p class="small">
+      I nodi fluttuano continuamente. Quando clicchi un nodo, l’animazione si ferma e vengono evidenziate le relazioni del nodo selezionato. Usa “Reset vista” per ripartire.
+    </p>
+
+    <div class="section">
+      <h3>Filtri</h3>
+
+      <div class="filter-row">
+        <input id="chkInitiative" type="checkbox" checked onchange="toggleType('initiative')">
+        <label for="chkInitiative">Initiative</label>
+      </div>
+
+      <div class="filter-row">
+        <input id="chkTechnology" type="checkbox" checked onchange="toggleType('technology')">
+        <label for="chkTechnology">Technology</label>
+      </div>
+
+      <div class="filter-row">
+        <input id="chkRole" type="checkbox" checked onchange="toggleType('role')">
+        <label for="chkRole">Role</label>
+      </div>
+
+      <div style="margin-top:12px;">
+        <button class="btn" onclick="resetView()">Reset vista</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Legenda</h3>
+      <div class="legend">
+        <div class="legend-item"><span class="dot" style="background:#0078d4"></span> Initiative</div>
+        <div class="legend-item"><span class="dot" style="background:#00b894"></span> Technology</div>
+        <div class="legend-item"><span class="dot" style="background:#f4b04f"></span> Role</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Dettaglio</h3>
+      <div id="details"><span class="placeholder">Clicca un nodo</span></div>
+    </div>
+  </aside>
+
+  <main id="graphWrap">
+    <div id="toolbar">
+      <div class="chip">Zoom: mouse / trackpad</div>
+      <div class="chip">Drag: sposta i nodi</div>
+    </div>
+    <div id="cy"></div>
+  </main>
+<script>
+
+let rawData = [];
+let cy = null;
+
+// ===== LOAD JSON =====
+fetch('data.json')
+  .then(res => res.json())
+  .then(data => {
+    rawData = data;
+    buildGraph(); // ✅ ora il grafo parte DOPO il fetch
+  })
+  .catch(err => {
+    console.error(err);
+    document.getElementById("details").innerHTML =
+      "Errore nel caricamento di data.json";
+  });
+
+
+// ===== HELPERS =====
+function slugify(value) {
+  return value
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\w\s/-]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[\/\s]+/g, '_');
+}
+
+function escapeHtml(str) {
+  return (str || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+
+// ===== BUILD GRAPH =====
+function buildGraph() {
+
+  const nodesMap = {};
+  const edges = [];
+
+  rawData.forEach(row => {
+
+    const initId = "init_" + row.Id;
+
+    nodesMap[initId] = {
+      id: initId,
+      label: row.title,
+      type: "initiative",
+      description: row.description || ""
+    };
+
+    (row.tech || "").split(';').forEach(v => {
+      if (!v.trim()) return;
+
+      const tech = v.trim();
+      const techId = "tech_" + slugify(tech);
+
+      if (!nodesMap[techId]) {
+        nodesMap[techId] = {
+          id: techId,
+          label: tech,
+          type: "technology",
+          description: "Tecnologia"
+        };
+      }
+
+      edges.push({
+        id: `${initId}_${techId}`,
+        source: initId,
+        target: techId
+      });
+    });
+
+    (row.roles || "").split(';').forEach(v => {
+      if (!v.trim()) return;
+
+      const role = v.trim();
+      const roleId = "role_" + slugify(role);
+
+      if (!nodesMap[roleId]) {
+        nodesMap[roleId] = {
+          id: roleId,
+          label: role,
+          type: "role",
+          description: "Ruolo"
+        };
+      }
+
+      edges.push({
+        id: `${initId}_${roleId}`,
+        source: initId,
+        target: roleId
+      });
+    });
+
+  });
+
+  const elements = [
+    ...Object.values(nodesMap).map(n => ({ data: n })),
+    ...edges.map(e => ({ data: e }))
+  ];
+
+  if (cy) cy.destroy();
+
+  cy = cytoscape({
+    container: document.getElementById('cy'),
+    elements,
+
+    style: [
+      {
+        selector: 'node',
+        style: {
+          'label': 'data(label)',
+          'width': 26,
+          'height': 26,
+          'font-size': 9,
+          'text-wrap': 'wrap',
+          'text-max-width': 90,
+          'text-valign': 'center',
+          'text-halign': 'center',
+          'background-color': '#0078d4'
+        }
+      },
+      { selector:'node[type="technology"]', style:{ 'background-color':'#00b894' }},
+      { selector:'node[type="role"]', style:{ 'background-color':'#f4b04f' }},
+      { selector:'edge', style:{ 'line-color':'#ccc' }}
+    ],
+
+    layout:{
+      name:'cose',
+      animate:true
+    }
+  });
+
+
+  // ===== INTERAZIONI =====
+  cy.on('tap','node',evt=>{
+    let n = evt.target;
+    cy.elements().style('opacity',0.2);
+    n.closedNeighborhood().style('opacity',1);
+  });
+
+  cy.on('tap',evt=>{
+    if(evt.target===cy){
+      cy.elements().style('opacity',1);
+    }
+  });
+
+}
+
+</script>
+``
+  
+</body>
+</html>

@@ -1,0 +1,29 @@
+[
+  {
+    "Id": "1",
+    "title": "Knowledge Graph iniziative",
+    "description": "Costruire un knowledge graph",
+    "tech": "Power Automate; Dataverse; Power BI",
+    "roles": "AI Lead; Prompt Engineer"
+  },
+  {
+    "Id": "2",
+    "title": "Catalogo dati",
+    "description": "Catalogo e metadati",
+    "tech": "Azure Functions; Graph API",
+    "roles": "Enterprise Architect; UX Service Designer"
+  }
+
+
+  /* === TEMPLATE ===
+  
+  ,{
+    "Id": "3",
+    "title": "Nome iniziativa",
+    "description": "Descrizione breve",
+    "tech": "Tech1; Tech2; Tech3",
+    "roles": "Ruolo1; Ruolo2"
+  }
+
+  */
+]
